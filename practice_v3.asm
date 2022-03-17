@@ -7,7 +7,7 @@ space: .asciiz " "
 newLine: .asciiz "\n"
 
 
-
+# Umutcan CEYHAN 260201003 
 ####################################
 #   4 Bytes - Value
 #   4 Bytes - Address of Left Node
@@ -18,25 +18,18 @@ newLine: .asciiz "\n"
 .text 
 main:
 
-
-
-
 la $a0, unorderedList
 
 jal build
 
-#li $a0, 8
-#li $v0, 1
-#syscall
-
-#test return
-li $v0, 10
-syscall
+# $v0 is the RootNodeAddress 
 
 # code moves from here
+# $s3 is the RootNodeAddress
 move $s3, $v0
 
 move $a0, $s3
+# $a0 -> RootNodeAddress
 jal print
 
 li $s0, 8
@@ -89,7 +82,7 @@ syscall
 ####################################
 build:
     # $a0 has come with unordered list address. 
-    # store a0 to stack to prevent changes on it.
+    # store a0 (unordered list address) to stack to prevent changes on it.
     subu $sp, $sp, 4
     sw $a0, 0($sp) 
 
@@ -99,6 +92,7 @@ build:
     sw $ra, 0($sp)
 
     ## find biggest function called
+    # Parameters $a0 -> list
     jal findBiggest
 
     ## returned value stored in $s0 because insert function need this template
@@ -123,21 +117,10 @@ build:
         la $a0, newLine
         syscall
 
-        # Print unordered list's first element (13)
-        lw $a0, 0($t6)
-        li $v0, 1
-        syscall
-        
-        # Print new line
-        li $v0, 4
-        la $a0, newLine
-        syscall
-
         lw $v0, 0($sp)
         lw $a0, 4($sp)
         addu $sp, $sp, 8
         #################################
-
     ## load $ra its former value to return main function
     lw $ra, 0($sp)
     addu $sp, $sp, 4
@@ -177,7 +160,7 @@ build:
 
     move $v0, $t0
 
-    # $a0 parameter restored as it is given to the function 
+    # $a0 (unordered list) parameter restored as it is given to the function 
     lw $a0, 0($sp)
     addu $sp, $sp, 4
 
@@ -253,14 +236,16 @@ build:
     #################################
     # Before the loop move $a0 to $s1 because it is empty at first
     move $s1, $a0
-    # Before the loop move $v0 to $s1 because it is empty at first
-    move $s2, $v0
+
+    ### STORE THE INITIAL parameter a0 (unordered list) and $v0 rootNodeAddres in stack.
+    subu $sp $sp, 8
+    sw $a0, 0($sp)
+    sw $v0, 4($sp)
 
     # Loop to insert nodes binary heap tree
     insertEachNodeLoop:  
         ### Updated Biggest value address that needs removed from list stored in $s0
         ### Updated Unordered List address stored in $s1  
-        ### Updated Parent Node address stored in $s2
         
         ## Check list is finished or not
         # $t0 -> First item in the list 
@@ -274,9 +259,6 @@ build:
         # removeBiggestValueFromList function call will be made so store $ra in stack
         subu $sp, $sp, 4
         sw $ra, 0($sp)
-
-        # updated Parent Node Address assigned to $v0 
-        move $v0, $s2
 
         # removeBiggestValueFromList function parameters are prepared
         # updatedList moved to $a0 as parameter
@@ -298,7 +280,7 @@ build:
         # updated list stored in $s1 
         move $s1, $v0
 
-        ######PRINT ARRAY TEST#############
+        testRemoveBiggestValueFromListFunction:
             # LOCAL TEST IT MUST PRINT FIRST 4 elements of the list 
             subu $sp, $sp, 12
             sw $v0, 0($sp)
@@ -336,7 +318,7 @@ build:
                 lw $s1, 8($sp)
                 addu $sp, $sp, 12
                 #################################
-        ########### TEST DONE #############
+            ########### TEST DONE #############
         # load back to v0 root node address from stack
         lw $v0, 0($sp)
         lw $a0, 4($sp)
@@ -371,7 +353,7 @@ build:
         # store biggest value in $s0 
         move $s0, $v0
 
-        ##### TEST FOR BIGGEST VALUE
+        testFindBiggestFunction2:
 
             move $a0, $s0
             li $v0, 1
@@ -380,7 +362,7 @@ build:
             la $a0, newLine
             li $v0, 4
             syscall
-        ##### TEST DONE
+            ##### TEST DONE
 
         # restore $v0 with initial value (root Node Address)
         lw $v0, 0($sp)
@@ -418,9 +400,6 @@ build:
         lw $ra, 0($sp)
         addu $sp, $sp, 4
 
-        # $v0 -> parentNodeAddress move it to $s2
-        move $s2, $v0
-
         # restore $v0 and $a0 values from stack
         lw $v0, 0($sp)
         lw $a0, 4($sp)
@@ -430,13 +409,22 @@ build:
         j insertEachNodeLoop
     
     insertEachNodeLoopEnd:
+
+    ### RESTORE THE INITIAL parameter $a0 and $v0 from stack
+    lw $a0, 0($sp)
+    lw $v0, 4($sp)
+    addu $sp, $sp, 8
+
         jr $ra
 
 ####################################
 # Insert Procedure
 ####################################
-insert: 
-    # initial parameters $a0 -> value , $a1 -> parentNodeAddress
+insert: # (value, rootNodeAddress)
+    # initial parameters $a0 -> value , $a1 -> rootNodeAddress
+    
+    # if value is $zero than there is not a valid value then return immediately
+    beq $a0, $zero, returnImmediately
 
     # store initial parameters to stack
     subu $sp, $sp, 8
@@ -464,7 +452,7 @@ insert:
         syscall
 
         # v0 -> is child node address, a1 -> parent node address
-        # restore $a0 from stack
+        # restore $a0 (child node value) from stack
         lw $a0, 0($sp)
 
         # change child node value 
@@ -478,8 +466,8 @@ insert:
         # update parent node's left child address
         sw $v0,  4($a1)
 
-        j testInsertion
-    
+        j heapListCheck
+        
     rightChildEmpty:
         
         # create child node
@@ -501,6 +489,32 @@ insert:
         sw $a1, 12($v0)
         # update parent node's left child address
         sw $v0, 8($a1)
+
+    heapListCheck:
+        #### check for heap list condition 
+        move $t0, $v0 # $t0 -> child node address
+        move $t1, $a1 # $t1 -> Parent node address
+        lw $t2, 0($t0) # $t2 -> Child node value
+        lw $t3, 0($t1) # $t3 -> Parent node value
+
+        # compare value with parentnode value
+        ble $t2, $t3, testInsertion
+
+    swapNodes:
+        # child node's value updated
+        sw $t3, 0($t0)
+        # parent node's value updated
+        sw $t2, 0($t1)
+
+        # check if the parent node is root node
+        # Parent node's parent node address
+        lw $t5, 12($t1) # t5 -> Parent node's parent node address
+        beq $t5, $zero, testInsertion # If parent node's parent is empty then it is root node then return.
+
+        move $v0, $t1 # $t1 former parent node new child node
+        move $a1, $t5 # $t5 former parent's parent node new parent node
+
+        j heapListCheck
 
     testInsertion:
         ############################
@@ -596,40 +610,127 @@ insert:
         addu $sp, $sp, 8
         #################################
 
-    # return updated/same parent node address
-    move $v0, $a1 
+
 
     # restore initial parameters
     lw $a0, 0($sp)
     lw $a1, 4($sp)
     addu $sp, $sp, 8
 
-    jr $ra
+    returnImmediately:
+        # empty the $v0
+        move $v0, $zero
+        
+        jr $ra
 
 ####################################
 # Remove Procedure
 ####################################
-remove:
+remove: # (list) -> (removedBiggestValue)
+    ## Parameters $a0 -> list
+    # Finds biggest value in given list
+    # Then removes it from list.
+
+    # Store parameters to stack
+    subu $sp, $sp, 4
+    sw $a0, 0($sp)
 
 
+    # FindBiggest function will be called store $ra in stack 
+    subu $sp, $sp, 4
+    sw $ra, 0($sp)
 
-jr $ra
+    # Parameters $a0 -> list, $v0 biggest value in the list
+    jal findBiggest
+    # FindBiggest Function completed restore $ra from stack
+    lw $ra, 0($sp)
+    addu $sp, $sp, 4
+
+    # Restore $a0 from stack
+    lw $a0, 0($sp)
+
+    # Store $v0 (biggest value) to $t0 register
+    move $t0, $v0
+
+    # Load $a0 (list) to $t1 register from stack
+    move $t1, $a0
+
+    # RemoveBiggestValueFromList function will be called store $ra in stack 
+    subu $sp, $sp, 4
+    sw $ra, 0($sp)
+
+    # Parameters $a0 -> biggestValue, $a1 -> list, $v0 -> updatedList
+    move $a0, $t0
+    move $a1, $t1
+
+    jal removeBiggestValueFromList
+
+    
+    # Function completed $ra restored
+    lw $ra, 0($sp)
+    addu $sp, $sp, 4
+
+    # Assign removedValue to v0
+    move $v0, $a0 
+
+    # $a0 restored 
+    lw $a0, 0($sp)
+    addu $sp, $sp, 4
+
+    jr $ra
 
 ####################################
 # Print Procedure
 ####################################
-print:
+print: # (rootNodeAddress)
+    # Store $a0 to stack
+    subu $sp, $sp, 4
+    sw $a0, 0($sp)
 
+    # move the RootNodeAddress to temp reg.
+    move $t0, $a0
 
+    printLoop:
+    # Loop through list
+        # current node's value is in $t1
+        lw $t1, 0($t0)
+        ## End condition
+        # if one of the left child or right child is empty or both empty then 
+        # If value is less than or equal to $zero j willNotPrint and return  
+        ble $t1, $zero, willNotPrint
+        # Else print value
+        move $a0, $t1
+        li $v0, 1
+        syscall
+        # Print space
+        la $a0, space
+        li $v0, 4
+        syscall 
 
-jr $ra
+        # Pass next node and j loop again
+        addu $t0, $t0, 16
+        j printLoop
+
+    # Unless value is bigger than $zero then return
+    willNotPrint:
+        # Print new line
+        la $a0, newLine
+        li $v0, 4
+        syscall
+
+        # Restore $a0 from stack
+        lw $a0, 0($sp)
+        addu $sp, $sp, 4
+
+        jr $ra
 
 ####################################
 # Extra Procedures
 ####################################
-
-findBiggest:
-    # ($a0 -> list)
+####################################
+# FindBiggest Procedure
+####################################
+findBiggest: # (list) -> (biggestValue)
 
     # assign unordered list address to $s5 register
     move $s5, $a0
@@ -679,8 +780,6 @@ findBiggest:
 
         lw $t0, 0($s5)
 
-        
-
         # list finished
 
         beq $t0, -1, returnBiggest
@@ -703,13 +802,15 @@ findBiggest:
         jr $ra
 
     updateBiggest:
-        # $t0 -> current item, $s4 -> former bigest value
+        # $t0 -> current item, $s4 -> former biggest value
         move $s4, $t0 
     
         j findBiggestLoop
 
-
-removeBiggestValueFromList: # (list, removalValue)
+####################################
+# removeBiggestValueFromList Procedure
+####################################
+removeBiggestValueFromList: # (list, removalValue) -> (updatedList)
     # unordered list $a0
     # biggest value $a1
     # returns updatedList (biggest value removed) $v0
